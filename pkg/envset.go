@@ -29,16 +29,21 @@ func Set(s any, options ...Option) error {
 		return ErrStructExpected
 	}
 
+	return buildParser(options...).setStruct(reflect.ValueOf(s).Elem())
+}
+
+func buildParser(options ...Option) *parser {
 	p := parser{
 		sliceSeparator: defaultSliceSeparator,
 		envTag:         defaultEnvTag,
 		defaultTag:     defaultDefaultTag,
 	}
+
 	for i := range options {
 		options[i](&p)
 	}
 
-	return p.setStruct(reflect.ValueOf(s).Elem())
+	return &p
 }
 
 func (p *parser) setStruct(v reflect.Value) error {
