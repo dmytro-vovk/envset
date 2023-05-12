@@ -2,18 +2,19 @@ package envset
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type parser struct {
 	sliceSeparator string
 	envTag         string
 	defaultTag     string
+	customTypes    map[string]func(string) (reflect.Value, error)
 }
 
 const (
@@ -25,7 +26,11 @@ const (
 func Set(s any, options ...Option) error {
 	t := reflect.TypeOf(s)
 
-	if !(t.Kind() == reflect.Pointer || t.Elem().Kind() == reflect.Struct) {
+	if t.Kind() != reflect.Pointer {
+		return ErrStructExpected
+	}
+
+	if t.Elem().Kind() != reflect.Struct {
 		return ErrStructExpected
 	}
 
@@ -37,6 +42,7 @@ func buildParser(options ...Option) *parser {
 		sliceSeparator: defaultSliceSeparator,
 		envTag:         defaultEnvTag,
 		defaultTag:     defaultDefaultTag,
+		customTypes:    make(map[string]func(string) (reflect.Value, error)),
 	}
 
 	for i := range options {
@@ -48,21 +54,53 @@ func buildParser(options ...Option) *parser {
 
 func (p *parser) setStruct(v reflect.Value) error {
 	for i := 0; i < v.Type().NumField(); i++ {
+		// Skip private fields
 		if !v.Type().Field(i).IsExported() {
 			continue
 		}
 
 		f := v.Field(i)
 
-		if f.Type().Kind() == reflect.Pointer {
+		// Check if we have a custom type
+		if _, ok := p.customTypes[f.Type().String()]; ok {
+			if err := p.parseType(f, v.Type().Field(i).Tag); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// Check if the field is a struct
+		if f.Type().Kind() == reflect.Struct {
+			if err := p.setStruct(f); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// Check if the field is a pointer to a struct
+		if f.Kind() == reflect.Pointer && f.Type().Elem().Kind() == reflect.Struct {
 			if f.IsNil() {
 				f.Set(reflect.New(f.Type().Elem()))
 			}
 
-			f = f.Elem()
+			if err := p.setStruct(f.Elem()); err != nil {
+				return err
+			}
+
+			continue
 		}
 
-		if err := p.setField(f, v.Type().Field(i).Tag); err != nil {
+		// Check if the field is tagged, if not, skip it
+		val, ok := p.tagValue(v.Type().Field(i).Tag)
+		if !ok {
+			continue
+		}
+
+		if val == "" {
+			return errors.New("value required, but not set")
+		}
+
+		if err := p.setField(f, val, v.Type().Field(i).Tag); err != nil {
 			return err
 		}
 	}
@@ -70,25 +108,13 @@ func (p *parser) setStruct(v reflect.Value) error {
 	return nil
 }
 
-func (p *parser) setField(f reflect.Value, tags reflect.StructTag) error {
-	if f.Kind() == reflect.Struct {
-		return p.setStruct(f)
+func (p *parser) setField(f reflect.Value, val string, tags reflect.StructTag) error {
+	if f.Kind() == reflect.Pointer && f.IsNil() {
+		f.Set(reflect.New(f.Type().Elem()))
+		f = f.Elem()
 	}
 
-	env, ok := tags.Lookup(p.envTag)
-	if !ok {
-		return nil
-	}
-
-	val, ok := os.LookupEnv(env)
-	if !ok {
-		val, ok = tags.Lookup(p.defaultTag)
-		if !ok {
-			return nil
-		}
-	}
-
-	switch f.Kind() {
+	switch f.Type().Kind() {
 	case reflect.Bool:
 		return p.parseBool(f, val)
 	case reflect.Float64:
@@ -100,7 +126,7 @@ func (p *parser) setField(f reflect.Value, tags reflect.StructTag) error {
 	case reflect.String:
 		return p.parseString(f, tags, val)
 	default:
-		return p.parseType(f, val)
+		return fmt.Errorf("unsupported type %s of %s", f.Kind(), f.Type())
 	}
 }
 
@@ -243,18 +269,51 @@ func (p *parser) parseString(f reflect.Value, tags reflect.StructTag, val string
 	return nil
 }
 
-func (p *parser) parseType(f reflect.Value, val string) error {
-	switch f.Type().String() {
-	case "time.Duration":
-		d, err := time.ParseDuration(val)
+func (p *parser) parseType(f reflect.Value, tags reflect.StructTag) error {
+	val, ok := p.tagValue(tags)
+	if !ok {
+		return nil
+	}
+
+	if val == "" {
+		return errors.New("value required, but not set")
+	}
+
+	if fn, ok := p.customTypes[f.Type().String()]; ok {
+		v, err := fn(val)
 		if err != nil {
 			return err
 		}
 
-		f.Set(reflect.ValueOf(d))
-	default:
-		return errors.New("unsupported field type " + f.Type().String())
+		f.Set(v)
+
+		return nil
 	}
 
-	return nil
+	return errors.New("unsupported field type " + f.Type().String())
+}
+
+func (p *parser) tagValue(tags reflect.StructTag) (string, bool) {
+	env, ok := tags.Lookup(p.envTag)
+	if !ok {
+		return "", false
+	}
+
+	omitEmpty := strings.HasSuffix(env, ",omitempty")
+	if omitEmpty {
+		env = strings.TrimSuffix(env, ",omitempty")
+	}
+
+	val, ok := os.LookupEnv(env)
+	if !ok {
+		val, ok = tags.Lookup(p.defaultTag)
+		if !ok {
+			if omitEmpty {
+				return "", false
+			}
+			return "", true
+		}
+	}
+
+	return val, true
 }
