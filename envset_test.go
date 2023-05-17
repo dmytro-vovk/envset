@@ -37,12 +37,11 @@ func TestSet(t *testing.T) {
 
 	var ms MyStruct
 
-	require.NotPanics(t, func() { require.Error(t, envset.ErrStructExpected, envset.Set(ms)) })
-	require.NotPanics(t, func() { require.Error(t, envset.ErrStructExpected, envset.Set(false)) })
-	require.NotPanics(t, func() {
-		var i int
-		require.Error(t, envset.ErrStructExpected, envset.Set(&i))
-	})
+	require.Error(t, envset.ErrStructExpected, envset.Set(ms))
+	require.Error(t, envset.ErrStructExpected, envset.Set(false))
+
+	var i int
+	require.Error(t, envset.ErrStructExpected, envset.Set(&i))
 
 	require.NoError(t, envset.Set(
 		&ms,

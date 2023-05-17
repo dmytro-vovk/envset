@@ -206,7 +206,7 @@ func (p *parser) parseInt(f reflect.Value, tags reflect.StructTag, val string) e
 
 	if min, ok := tags.Lookup("min"); ok {
 		if m, err := strconv.Atoi(min); err != nil {
-			return err
+			return fmt.Errorf("parsing min value: %w", err)
 		} else if i < m {
 			return errors.New("value " + val + " is less tha minimal value " + min)
 		}
@@ -214,7 +214,7 @@ func (p *parser) parseInt(f reflect.Value, tags reflect.StructTag, val string) e
 
 	if max, ok := tags.Lookup("max"); ok {
 		if m, err := strconv.Atoi(max); err != nil {
-			return err
+			return fmt.Errorf("parsing max value: %w", err)
 		} else if i > m {
 			return errors.New("value " + val + " is greater than maximum value " + max)
 		}
@@ -233,7 +233,7 @@ func (p *parser) parseFloat(f reflect.Value, tags reflect.StructTag, val string)
 
 	if min, ok := tags.Lookup("min"); ok {
 		if m, err := strconv.ParseFloat(min, 64); err != nil {
-			return err
+			return fmt.Errorf("parsing min value: %w", err)
 		} else if i < m {
 			return errors.New("value " + val + " is less tha minimal value " + min)
 		}
@@ -241,7 +241,7 @@ func (p *parser) parseFloat(f reflect.Value, tags reflect.StructTag, val string)
 
 	if max, ok := tags.Lookup("max"); ok {
 		if m, err := strconv.ParseFloat(max, 64); err != nil {
-			return err
+			return fmt.Errorf("parsing max value: %w", err)
 		} else if i > m {
 			return errors.New("value " + val + " is greater than maximum value " + max)
 		}
@@ -279,24 +279,25 @@ func (p *parser) parseType(f reflect.Value, tags reflect.StructTag) error {
 		return errors.New("value required, but not set")
 	}
 
-	if fn, ok := p.customTypes[f.Type().String()]; ok {
-		v, err := fn(val)
-		if err != nil {
-			return err
-		}
-
-		f.Set(v)
-
-		return nil
+	fn, ok := p.customTypes[f.Type().String()]
+	if !ok {
+		return errors.New("unsupported field type " + f.Type().String())
 	}
 
-	return errors.New("unsupported field type " + f.Type().String())
+	v, err := fn(val)
+	if err != nil {
+		return err
+	}
+
+	f.Set(v)
+
+	return nil
 }
 
 func (p *parser) tagValue(tags reflect.StructTag) (string, bool) {
 	env, ok := tags.Lookup(p.envTag)
 	if !ok {
-		return "", false
+		return "", false // no tag, skip it
 	}
 
 	omitEmpty := strings.HasSuffix(env, ",omitempty")
@@ -305,15 +306,15 @@ func (p *parser) tagValue(tags reflect.StructTag) (string, bool) {
 	}
 
 	val, ok := os.LookupEnv(env)
-	if !ok {
+	if !ok { // value not set
 		val, ok = tags.Lookup(p.defaultTag)
-		if !ok {
+		if !ok { // no default value set
 			if omitEmpty {
-				return "", false
+				return "", false // tag is there, but can be empty, skip
 			}
-			return "", true
+			return "", true // tag is there, but empty
 		}
 	}
 
-	return val, true
+	return val, true // tag is there and not empty
 }
