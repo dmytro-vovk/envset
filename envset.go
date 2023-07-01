@@ -32,22 +32,24 @@ func Set(s any, options ...Option) error {
 		panic(ErrStructPtrExpected)
 	}
 
-	return buildParser(options...).setStruct(reflect.ValueOf(s).Elem())
+	return buildParser(options).setStruct(reflect.ValueOf(s).Elem())
 }
 
-func buildParser(options ...Option) *parser {
-	p := parser{
+func buildParser(options []Option) *parser {
+	return (&parser{
 		sliceSeparator: defaultSliceSeparator,
 		envTag:         defaultEnvTag,
 		defaultTag:     defaultDefaultTag,
 		customTypes:    make(map[string]func(string) (reflect.Value, error)),
-	}
+	}).apply(options)
+}
 
+func (p *parser) apply(options []Option) *parser {
 	for i := range options {
-		options[i](&p)
+		options[i](p)
 	}
 
-	return &p
+	return p
 }
 
 func (p *parser) setStruct(v reflect.Value) error {
@@ -60,8 +62,8 @@ func (p *parser) setStruct(v reflect.Value) error {
 		f := v.Field(i)
 
 		// Check if we have a custom type
-		if _, ok := p.customTypes[f.Type().String()]; ok {
-			if err := p.parseType(f, v.Type().Field(i).Tag); err != nil {
+		if parser, ok := p.customTypes[f.Type().String()]; ok {
+			if err := p.parseType(f, v.Type().Field(i).Tag, parser); err != nil {
 				return err
 			}
 			continue
@@ -140,7 +142,7 @@ func (p *parser) setField(f reflect.Value, val string, tags reflect.StructTag) e
 	case reflect.Uint64:
 		return setInteger[uint64](f, tags, val)
 	case reflect.Slice:
-		return p.parseSlice(f, tags, val)
+		return parseSlice(f, tags, strings.Split(val, p.sliceSeparator))
 	case reflect.String:
 		return p.parseString(f, tags, val)
 	default:
@@ -150,11 +152,12 @@ func (p *parser) setField(f reflect.Value, val string, tags reflect.StructTag) e
 
 func (p *parser) parseBool(f reflect.Value, val string) error {
 	parsed, ok := map[string]bool{
-		"true": true, "false": false,
-		"yes": true, "no": false,
-		"yay": true, "nay": false,
-		"y": true, "n": false,
 		"1": true, "0": false,
+		"t": true, "f": false,
+		"true": true, "false": false,
+		"y": true, "n": false,
+		"yay": true, "nay": false,
+		"yes": true, "no": false,
 	}[strings.ToLower(val)]
 
 	if !ok {
@@ -166,57 +169,32 @@ func (p *parser) parseBool(f reflect.Value, val string) error {
 	return nil
 }
 
-func (p *parser) parseSlice(f reflect.Value, tag reflect.StructTag, val string) error {
-	values := strings.Split(val, p.sliceSeparator)
+func parseSlice(f reflect.Value, tag reflect.StructTag, values []string) error {
 	switch f.Type().Elem().Kind() {
 	case reflect.Float32:
-		if err := setSliceOfFloats[float32](values, f); err != nil {
-			return err
-		}
+		return setSliceOfFloats[float32](values, f)
 	case reflect.Float64:
-		if err := setSliceOfFloats[float64](values, f); err != nil {
-			return err
-		}
+		return setSliceOfFloats[float64](values, f)
 	case reflect.Int:
-		if err := setSliceOfIntegers[int](values, f); err != nil {
-			return err
-		}
+		return setSliceOfIntegers[int](values, f)
 	case reflect.Uint:
-		if err := setSliceOfIntegers[uint](values, f); err != nil {
-			return err
-		}
+		return setSliceOfIntegers[uint](values, f)
 	case reflect.Int8:
-		if err := setSliceOfIntegers[int8](values, f); err != nil {
-			return err
-		}
+		return setSliceOfIntegers[int8](values, f)
 	case reflect.Uint8:
-		if err := setSliceOfIntegers[uint8](values, f); err != nil {
-			return err
-		}
+		return setSliceOfIntegers[uint8](values, f)
 	case reflect.Int16:
-		if err := setSliceOfIntegers[int16](values, f); err != nil {
-			return err
-		}
+		return setSliceOfIntegers[int16](values, f)
 	case reflect.Uint16:
-		if err := setSliceOfIntegers[uint16](values, f); err != nil {
-			return err
-		}
+		return setSliceOfIntegers[uint16](values, f)
 	case reflect.Int32:
-		if err := setSliceOfIntegers[int32](values, f); err != nil {
-			return err
-		}
+		return setSliceOfIntegers[int32](values, f)
 	case reflect.Uint32:
-		if err := setSliceOfIntegers[uint32](values, f); err != nil {
-			return err
-		}
+		return setSliceOfIntegers[uint32](values, f)
 	case reflect.Int64:
-		if err := setSliceOfIntegers[int64](values, f); err != nil {
-			return err
-		}
+		return setSliceOfIntegers[int64](values, f)
 	case reflect.Uint64:
-		if err := setSliceOfIntegers[uint64](values, f); err != nil {
-			return err
-		}
+		return setSliceOfIntegers[uint64](values, f)
 	case reflect.String:
 		if pattern, ok := tag.Lookup("pattern"); ok {
 			r, err := regexp.Compile(pattern)
@@ -226,18 +204,26 @@ func (p *parser) parseSlice(f reflect.Value, tag reflect.StructTag, val string) 
 
 			for i := range values {
 				if !r.MatchString(values[i]) {
-					return errors.New("invalid value " + values[i])
+					return errors.New("value " + values[i] + " does not match pattern " + pattern)
 				}
 			}
 		}
 
 		f.Set(reflect.ValueOf(values))
+
+		return nil
 	default:
 		return errors.New("unsupported slice elements type: " + f.Type().Elem().Kind().String())
 	}
-
-	return nil
 }
+
+type float interface{ ~float32 | ~float64 }
+
+type integer interface {
+	~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64
+}
+
+type number interface{ integer | float }
 
 func setSliceOfFloats[F float](val []string, f reflect.Value) error {
 	var values []F
@@ -271,18 +257,6 @@ func setSliceOfIntegers[N integer](val []string, f reflect.Value) error {
 	f.Set(reflect.ValueOf(values))
 
 	return nil
-}
-
-type float interface {
-	~float32 | ~float64
-}
-
-type integer interface {
-	~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64
-}
-
-type number interface {
-	integer | float
 }
 
 func lookupNumericTag[N number](cond string, tag reflect.StructTag) (*N, error) {
@@ -405,7 +379,7 @@ func (p *parser) parseString(f reflect.Value, tag reflect.StructTag, val string)
 	return nil
 }
 
-func (p *parser) parseType(f reflect.Value, tag reflect.StructTag) error {
+func (p *parser) parseType(f reflect.Value, tag reflect.StructTag, parser func(string) (reflect.Value, error)) error {
 	val, ok := p.tagValue(tag)
 	if !ok {
 		return nil
@@ -415,12 +389,7 @@ func (p *parser) parseType(f reflect.Value, tag reflect.StructTag) error {
 		return errors.New("value required, but not set")
 	}
 
-	fn, ok := p.customTypes[f.Type().String()]
-	if !ok {
-		return errors.New("unsupported field type " + f.Type().String())
-	}
-
-	v, err := fn(val)
+	v, err := parser(val)
 	if err != nil {
 		return err
 	}
