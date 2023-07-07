@@ -6,7 +6,6 @@ import (
 	"os"
 	"reflect"
 	"regexp"
-	"strconv"
 	"strings"
 )
 
@@ -23,8 +22,9 @@ const (
 	defaultSliceSeparator = ","
 )
 
-func Set(s any, options ...Option) error {
-	t := reflect.TypeOf(s)
+// Set accepts a pointer to a struct and zero or more Options
+func Set(structPtr any, options ...Option) error {
+	t := reflect.TypeOf(structPtr)
 
 	if t.Kind() != reflect.Pointer || t.Elem().Kind() != reflect.Struct {
 		// We panic because there is a programmatic error,
@@ -32,7 +32,7 @@ func Set(s any, options ...Option) error {
 		panic(ErrStructPtrExpected)
 	}
 
-	return buildParser(options).setStruct(reflect.ValueOf(s).Elem())
+	return buildParser(options).setStruct(reflect.ValueOf(structPtr).Elem())
 }
 
 func buildParser(options []Option) *parser {
@@ -97,7 +97,7 @@ func (p *parser) setStruct(v reflect.Value) error {
 		}
 
 		if val == "" {
-			return errors.New("value required, but not set")
+			return ErrMissingValue
 		}
 
 		if err := p.setField(f, val, v.Type().Field(i).Tag); err != nil {
@@ -118,9 +118,9 @@ func (p *parser) setField(f reflect.Value, val string, tags reflect.StructTag) e
 	case reflect.Bool:
 		return p.parseBool(f, val)
 	case reflect.Float32:
-		return p.parseFloat32(f, tags, val)
+		return p.setFloat32(f, tags, val)
 	case reflect.Float64:
-		return p.parseFloat64(f, tags, val)
+		return p.setFloat64(f, tags, val)
 	case reflect.Int:
 		return setInteger[int](f, tags, val)
 	case reflect.Uint:
@@ -144,7 +144,7 @@ func (p *parser) setField(f reflect.Value, val string, tags reflect.StructTag) e
 	case reflect.Slice:
 		return parseSlice(f, tags, strings.Split(val, p.sliceSeparator))
 	case reflect.String:
-		return p.parseString(f, tags, val)
+		return p.setString(f, tags, val)
 	default:
 		return fmt.Errorf("unsupported type %s of %s", f.Kind(), f.Type())
 	}
@@ -217,152 +217,7 @@ func parseSlice(f reflect.Value, tag reflect.StructTag, values []string) error {
 	}
 }
 
-type float interface{ ~float32 | ~float64 }
-
-type integer interface {
-	~int | ~int8 | ~int16 | ~int32 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64
-}
-
-type number interface{ integer | float }
-
-func setSliceOfFloats[F float](val []string, f reflect.Value) error {
-	var values []F
-
-	for _, v := range val {
-		i, err := parseFloat[F](v)
-		if err != nil {
-			return err
-		}
-
-		values = append(values, i)
-	}
-
-	f.Set(reflect.ValueOf(values))
-
-	return nil
-}
-
-func setSliceOfIntegers[N integer](val []string, f reflect.Value) error {
-	var values []N
-
-	for _, v := range val {
-		i, err := parseInteger[N](v)
-		if err != nil {
-			return err
-		}
-
-		values = append(values, i)
-	}
-
-	f.Set(reflect.ValueOf(values))
-
-	return nil
-}
-
-func lookupNumericTag[N number](cond string, tag reflect.StructTag) (*N, error) {
-	value, ok := tag.Lookup(cond)
-	if !ok {
-		return nil, nil
-	}
-
-	m, err := strconv.ParseFloat(value, 64)
-	if err != nil {
-		return nil, fmt.Errorf("parsing %s value: %w", cond, err)
-	}
-
-	m1 := N(m)
-
-	return &m1, nil
-}
-
-func parseInteger[N integer](val string) (N, error) {
-	i, err := strconv.Atoi(val)
-	if err != nil {
-		return 0, err
-	}
-
-	return N(i), nil
-}
-
-func parseFloat[F float](val string) (F, error) {
-	f, err := strconv.ParseFloat(val, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	return F(f), nil
-}
-
-func setInteger[N integer](f reflect.Value, tag reflect.StructTag, val string) error {
-	i, err := parseInteger[N](val)
-	if err != nil {
-		return err
-	}
-
-	if min, err := lookupNumericTag[N]("min", tag); err != nil {
-		return fmt.Errorf("parsing min value: %w", err)
-	} else if min != nil && i < *min {
-		return fmt.Errorf("value %v is less than the minimal value %v", val, *min)
-	}
-
-	if max, err := lookupNumericTag[N]("max", tag); err != nil {
-		return fmt.Errorf("parsing max value: %w", err)
-	} else if max != nil && i < *max {
-		return fmt.Errorf("value %v is greater than the minimal value %v", val, *max)
-	}
-
-	f.Set(reflect.ValueOf(i))
-
-	return nil
-}
-
-func (p *parser) parseFloat32(f reflect.Value, tag reflect.StructTag, val string) error {
-	i, err := parseFloat[float32](val)
-	if err != nil {
-		return err
-	}
-
-	if min, err := lookupNumericTag[float32]("min", tag); err != nil {
-		return fmt.Errorf("parsing min value: %w", err)
-	} else if min != nil && i < *min {
-		return fmt.Errorf("value %v is less than the minimal value %v", val, *min)
-	}
-
-	if max, err := lookupNumericTag[float32]("max", tag); err != nil {
-		return fmt.Errorf("parsing max value: %w", err)
-	} else if max != nil && i < *max {
-		return fmt.Errorf("value %v is greater than the minimal value %v", val, *max)
-	}
-
-	f.Set(reflect.ValueOf(i))
-
-	return nil
-}
-
-func (p *parser) parseFloat64(f reflect.Value, tag reflect.StructTag, val string) error {
-	i, err := parseFloat[float64](val)
-	if err != nil {
-		return err
-	}
-
-	if min, err := lookupNumericTag[float64]("min", tag); err != nil {
-		return fmt.Errorf("parsing min value: %w", err)
-	} else if min != nil && i < *min {
-		return fmt.Errorf("value %v is less than the minimal value %v", val, *min)
-	}
-
-	if max, err := lookupNumericTag[float64]("max", tag); err != nil {
-		return fmt.Errorf("parsing max value: %w", err)
-	} else if max != nil && i < *max {
-		return fmt.Errorf("value %v is greater than the minimal value %v", val, *max)
-	}
-
-	f.Set(reflect.ValueOf(i))
-
-	return nil
-}
-
-func (p *parser) parseString(f reflect.Value, tag reflect.StructTag, val string) error {
+func (p *parser) setString(f reflect.Value, tag reflect.StructTag, val string) error {
 	if pattern, ok := tag.Lookup("pattern"); ok {
 		r, err := regexp.Compile(pattern)
 		if err != nil {
@@ -402,7 +257,7 @@ func (p *parser) parseType(f reflect.Value, tag reflect.StructTag, parser func(s
 func (p *parser) tagValue(tag reflect.StructTag) (val string, ok bool) {
 	env, ok := tag.Lookup(p.envTag)
 	if !ok {
-		return "", false // no tag, skip it
+		return
 	}
 
 	omitEmpty := strings.HasSuffix(env, ",omitempty")
@@ -411,15 +266,14 @@ func (p *parser) tagValue(tag reflect.StructTag) (val string, ok bool) {
 	}
 
 	val, ok = os.LookupEnv(env)
-	if !ok { // value not set
-		val, ok = tag.Lookup(p.defaultTag)
-		if !ok { // no default value set
-			if omitEmpty {
-				return "", false // tag is there, but can be empty, skip
-			}
-			return "", true // tag is there, but empty
-		}
+	if ok {
+		return
 	}
 
-	return val, true // tag is there and not empty
+	val, ok = tag.Lookup(p.defaultTag)
+	if ok {
+		return
+	}
+
+	return "", !omitEmpty
 }
