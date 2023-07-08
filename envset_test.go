@@ -199,3 +199,46 @@ func TestUnsupportedType(t *testing.T) {
 
 	require.Error(t, envset.Set(&v))
 }
+
+func TestBool(t *testing.T) {
+	type T struct {
+		B bool `env:"b"`
+	}
+
+	_ = os.Setenv("b", "15")
+
+	var v T
+	require.Error(t, envset.Set(&v))
+}
+
+func TestBool2(t *testing.T) {
+	type T struct {
+		B bool `env:"b" default:"xyz"`
+	}
+
+	var v T
+
+	require.Error(t, envset.Set(&v))
+}
+
+func TestString(t *testing.T) {
+	type T struct {
+		S string `env:"s" pattern:"[a-" default:"abc"`
+	}
+
+	var v T
+
+	require.ErrorContains(t, envset.Set(&v), "error parsing regexp")
+}
+
+func TestString2(t *testing.T) {
+	type T struct {
+		S string `env:"s" pattern:"^\\d$"`
+	}
+
+	_ = os.Setenv("s", "15abc")
+
+	var v T
+
+	require.ErrorIs(t, envset.ErrInvalidValue, envset.Set(&v))
+}
