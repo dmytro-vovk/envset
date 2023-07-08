@@ -221,6 +221,23 @@ func TestBool2(t *testing.T) {
 	require.Error(t, envset.Set(&v))
 }
 
+func TestCustomBool(t *testing.T) {
+	type T struct {
+		BT bool `env:"bt"`
+		BF bool `env:"bf"`
+	}
+
+	_ = os.Setenv("bt", "так")
+	_ = os.Setenv("bf", "ні")
+
+	var v T
+
+	require.NoError(t, envset.Set(&v, envset.WithCustomBools("так", "ні")))
+
+	assert.True(t, v.BT)
+	assert.False(t, v.BF)
+}
+
 func TestString(t *testing.T) {
 	type T struct {
 		S string `env:"s" pattern:"[a-" default:"abc"`
@@ -241,4 +258,18 @@ func TestString2(t *testing.T) {
 	var v T
 
 	require.ErrorIs(t, envset.ErrInvalidValue, envset.Set(&v))
+}
+
+func TestSliceSeparator(t *testing.T) {
+	type T struct {
+		S []string `env:"s"`
+	}
+
+	_ = os.Setenv("s", "a•b•c•d")
+
+	var v T
+
+	require.NoError(t, envset.Set(&v, envset.WithSliceSeparator("•")))
+
+	assert.Equal(t, []string{"a", "b", "c", "d"}, v.S)
 }

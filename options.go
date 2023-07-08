@@ -36,3 +36,8 @@ func WithTypeParser[T any](fn func(val string) (T, error)) Option {
 		}
 	}
 }
+
+// WithCustomBools adds a pair of values to be interpreted as true/false
+func WithCustomBools(asTrue, asFalse string) Option {
+	return func(p *parser) { p.bools[asTrue], p.bools[asFalse] = true, false }
+}

@@ -14,6 +14,7 @@ type parser struct {
 	envTag         string
 	defaultTag     string
 	customTypes    map[string]func(string) (reflect.Value, error)
+	bools          map[string]bool
 }
 
 const (
@@ -21,6 +22,15 @@ const (
 	defaultDefaultTag     = "default"
 	defaultSliceSeparator = ","
 )
+
+var defaultBools = map[string]bool{
+	"1": true, "0": false,
+	"t": true, "f": false,
+	"true": true, "false": false,
+	"y": true, "n": false,
+	"yay": true, "nay": false,
+	"yes": true, "no": false,
+}
 
 // Set accepts a pointer to a struct and zero or more Options
 func Set(structPtr any, options ...Option) error {
@@ -41,6 +51,7 @@ func buildParser(options []Option) *parser {
 		envTag:         defaultEnvTag,
 		defaultTag:     defaultDefaultTag,
 		customTypes:    make(map[string]func(string) (reflect.Value, error)),
+		bools:          defaultBools,
 	}).apply(options)
 }
 
@@ -151,15 +162,7 @@ func (p *parser) setField(f reflect.Value, val string, tags reflect.StructTag) e
 }
 
 func (p *parser) parseBool(f reflect.Value, val string) error {
-	parsed, ok := map[string]bool{
-		"1": true, "0": false,
-		"t": true, "f": false,
-		"true": true, "false": false,
-		"y": true, "n": false,
-		"yay": true, "nay": false,
-		"yes": true, "no": false,
-	}[strings.ToLower(val)]
-
+	parsed, ok := p.bools[strings.ToLower(val)]
 	if !ok {
 		return errors.New("invalid bool value " + val)
 	}
