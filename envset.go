@@ -167,7 +167,14 @@ func (p *parser) parseBool(f reflect.Value, val string) error {
 		return errors.New("invalid bool value " + val)
 	}
 
-	f.Set(reflect.ValueOf(parsed))
+	v := reflect.ValueOf(parsed)
+	if v.Type() == f.Type() {
+		f.Set(v)
+	} else if v.CanConvert(f.Type()) {
+		f.Set(v.Convert(f.Type()))
+	} else {
+		return fmt.Errorf("value of type %s is not assignable to field of type %s", v.Type(), f.Type())
+	}
 
 	return nil
 }

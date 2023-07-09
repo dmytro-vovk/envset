@@ -281,7 +281,7 @@ func TestCustomType(t *testing.T) {
 		C C `env:"c"`
 	}
 	var v T
-	require.NoError(t, envset.Set(&v, envset.WithTypeParser(func(val string) (C, error) {
+	require.NoError(t, envset.Set(&v, envset.WithTypeParser(func(string) (C, error) {
 		return "foo", nil
 	})))
 
@@ -294,7 +294,7 @@ func TestCustomType2(t *testing.T) {
 		C C `env:"c"`
 	}
 	var v T
-	require.ErrorContains(t, envset.Set(&v, envset.WithTypeParser(func(val string) (C, error) {
+	require.ErrorContains(t, envset.Set(&v, envset.WithTypeParser(func(string) (C, error) {
 		return "", errors.New("boo")
 	})), "boo")
 }
@@ -349,4 +349,17 @@ func TestCustomTypeFloat(t *testing.T) {
 	require.NoError(t, envset.Set(&v))
 	assert.Equal(t, C(10.0), v.C)
 	assert.Equal(t, float32(20.0), v.A)
+}
+
+func TestCustomTypeBool(t *testing.T) {
+	type C bool
+	type A = bool
+	type T struct {
+		C C `env:"c" default:"y"`
+		A A `env:"c" default:"n"`
+	}
+	var v T
+	require.NoError(t, envset.Set(&v))
+	assert.Equal(t, C(true), v.C)
+	assert.Equal(t, false, v.A)
 }
