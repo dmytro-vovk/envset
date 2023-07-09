@@ -70,7 +70,14 @@ func setInteger[N integer](f reflect.Value, tag reflect.StructTag, val string) e
 		return fmt.Errorf("value %v is greater than the minimal value %v", val, *max)
 	}
 
-	f.Set(reflect.ValueOf(i))
+	v := reflect.ValueOf(i)
+	if v.Type() == f.Type() {
+		f.Set(v)
+	} else if v.CanConvert(f.Type()) {
+		f.Set(v.Convert(f.Type()))
+	} else {
+		return fmt.Errorf("value of type %s is not assignable to field of type %s", v.Type(), f.Type())
+	}
 
 	return nil
 }

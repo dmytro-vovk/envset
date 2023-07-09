@@ -1,6 +1,7 @@
 package envset_test
 
 import (
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -272,4 +273,80 @@ func TestSliceSeparator(t *testing.T) {
 	require.NoError(t, envset.Set(&v, envset.WithSliceSeparator("•")))
 
 	assert.Equal(t, []string{"a", "b", "c", "d"}, v.S)
+}
+
+func TestCustomType(t *testing.T) {
+	type C string
+	type T struct {
+		C C `env:"c"`
+	}
+	var v T
+	require.NoError(t, envset.Set(&v, envset.WithTypeParser(func(val string) (C, error) {
+		return "foo", nil
+	})))
+
+	assert.Equal(t, C("foo"), v.C)
+}
+
+func TestCustomType2(t *testing.T) {
+	type C string
+	type T struct {
+		C C `env:"c"`
+	}
+	var v T
+	require.ErrorContains(t, envset.Set(&v, envset.WithTypeParser(func(val string) (C, error) {
+		return "", errors.New("boo")
+	})), "boo")
+}
+
+func TestCustomTypeString(t *testing.T) {
+	type C string
+	type A = string
+	type T struct {
+		C C `env:"c" default:"foo"`
+		A A `env:"c" default:"bar"`
+	}
+	var v T
+	require.NoError(t, envset.Set(&v))
+	assert.Equal(t, C("foo"), v.C)
+	assert.Equal(t, "bar", v.A)
+}
+
+func TestCustomTypeInt(t *testing.T) {
+	type C int
+	type A = int
+	type T struct {
+		C C `env:"c" default:"100"`
+		A A `env:"c" default:"200"`
+	}
+	var v T
+	require.NoError(t, envset.Set(&v))
+	assert.Equal(t, C(100), v.C)
+	assert.Equal(t, 200, v.A)
+}
+
+func TestCustomTypeByte(t *testing.T) {
+	type C byte
+	type A = byte
+	type T struct {
+		C C `env:"c" default:"100"`
+		A A `env:"c" default:"200"`
+	}
+	var v T
+	require.NoError(t, envset.Set(&v))
+	assert.Equal(t, C(100), v.C)
+	assert.Equal(t, byte(200), v.A)
+}
+
+func TestCustomTypeFloat(t *testing.T) {
+	type C float64
+	type A = float32
+	type T struct {
+		C C `env:"c" default:"10.0"`
+		A A `env:"c" default:"20.0"`
+	}
+	var v T
+	require.NoError(t, envset.Set(&v))
+	assert.Equal(t, C(10.0), v.C)
+	assert.Equal(t, float32(20.0), v.A)
 }

@@ -232,7 +232,14 @@ func (p *parser) setString(f reflect.Value, tag reflect.StructTag, val string) e
 		}
 	}
 
-	f.Set(reflect.ValueOf(val))
+	v := reflect.ValueOf(val)
+	if v.Type() == f.Type() {
+		f.Set(v)
+	} else if v.CanConvert(f.Type()) {
+		f.Set(v.Convert(f.Type()))
+	} else {
+		return fmt.Errorf("value of type %s is not assignable to field of type %s", v.Type(), f.Type())
+	}
 
 	return nil
 }
@@ -243,18 +250,12 @@ func (p *parser) parseType(f reflect.Value, tag reflect.StructTag, parser func(s
 		return nil
 	}
 
-	if val == "" {
-		return errors.New("value required, but not set")
-	}
-
 	v, err := parser(val)
-	if err != nil {
-		return err
+	if err == nil {
+		f.Set(v)
 	}
 
-	f.Set(v)
-
-	return nil
+	return err
 }
 
 func (p *parser) tagValue(tag reflect.StructTag) (val string, ok bool) {
