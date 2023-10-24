@@ -156,7 +156,7 @@ func TestOmitEmpty2(t *testing.T) {
 	}
 
 	var v T
-	require.Error(t, envset.Set(&v))
+	require.ErrorIs(t, envset.NewMissingValueError("a"), envset.Set(&v))
 }
 
 func TestOmitEmptyWithDefault(t *testing.T) {

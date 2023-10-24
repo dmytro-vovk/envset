@@ -108,7 +108,7 @@ func (p *parser) setStruct(v reflect.Value) error {
 		}
 
 		if val == "" {
-			return ErrMissingValue
+			return NewMissingValueError(v.Type().Field(i).Tag.Get(p.envTag))
 		}
 
 		if err := p.setField(f, val, v.Type().Field(i).Tag); err != nil {
