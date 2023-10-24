@@ -10,32 +10,32 @@ import (
 func TestTags(t *testing.T) {
 	testCases := []struct {
 		tag      reflect.StructTag
-		val      string
+		key      string
 		exist    bool
 		optional bool
 	}{
 		{
 			tag:      "",
-			val:      "",
+			key:      "",
 			exist:    false,
 			optional: false,
 		},
 		{
 			tag:      `env:"IS_SET"`,
-			val:      "is_set",
+			key:      "IS_SET",
 			exist:    true,
 			optional: false,
 		},
 		{
 			tag:      `env:"IS_NOT_SET"`,
-			val:      "",
+			key:      "IS_NOT_SET",
 			exist:    true,
 			optional: false,
 		},
 		{
 			tag:      `env:"IS_NOT_SET,omitempty"`,
-			val:      "",
-			exist:    false,
+			key:      "IS_NOT_SET",
+			exist:    true,
 			optional: true,
 		},
 	}
@@ -48,9 +48,9 @@ func TestTags(t *testing.T) {
 		tt := tt
 
 		t.Run(string(tt.tag), func(t *testing.T) {
-			val, exists, optional := p.tagValue(tt.tag)
+			key, exists, optional := p.tagKey(tt.tag)
 			assert.Equal(t, tt.exist, exists)
-			assert.Equal(t, tt.val, val)
+			assert.Equal(t, tt.key, key)
 			assert.Equal(t, tt.optional, optional)
 		})
 	}

@@ -141,6 +141,22 @@ func TestSet(t *testing.T) {
 
 func ptr[T any](v T) *T { return &v }
 
+func TestNoTag(t *testing.T) {
+	type T struct {
+		A int
+		B string
+		C float64
+		D bool
+		E struct {
+			F []int
+			G []string
+		}
+	}
+
+	var v T
+	require.NoError(t, envset.Set(&v))
+}
+
 func TestOmitEmpty(t *testing.T) {
 	type T struct {
 		A int `env:"a,omitempty"`
@@ -290,6 +306,9 @@ func TestCustomType(t *testing.T) {
 	type T struct {
 		C C `env:"c"`
 	}
+
+	t.Setenv("c", "bar")
+
 	var v T
 	require.NoError(t, envset.Set(&v, envset.WithTypeParser(func(string) (C, error) {
 		return "foo", nil
@@ -298,18 +317,31 @@ func TestCustomType(t *testing.T) {
 	assert.Equal(t, C("foo"), v.C)
 }
 
-func TestCustomType2(t *testing.T) {
+func TestCustomTypeNoTag(t *testing.T) {
+	type C string
+	type T struct {
+		C C
+	}
+
+	var v T
+	require.NoError(t, envset.Set(&v))
+}
+
+func TestCustomTypeParseError(t *testing.T) {
 	type C string
 	type T struct {
 		C C `env:"c"`
 	}
+
+	t.Setenv("c", "bar")
+
 	var v T
 	require.ErrorContains(t, envset.Set(&v, envset.WithTypeParser(func(string) (C, error) {
 		return "", errors.New("boo")
 	})), "boo")
 }
 
-func TestCustomType3(t *testing.T) {
+func TestCustomOptionalTypeParseError(t *testing.T) {
 	type C string
 	type T struct {
 		C C `env:"c,omitempty"`
@@ -383,4 +415,16 @@ func TestCustomTypeBool(t *testing.T) {
 	require.NoError(t, envset.Set(&v))
 	assert.Equal(t, C(true), v.C)
 	assert.Equal(t, false, v.A)
+}
+
+func TestEmptyEnvValue(t *testing.T) {
+	t.Setenv("a", "")
+
+	type T struct {
+		A string `env:"a"`
+	}
+
+	var v T
+	require.NoError(t, envset.Set(&v))
+	assert.Equal(t, "", v.A)
 }

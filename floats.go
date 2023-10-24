@@ -56,16 +56,16 @@ func (p *parser) setFloat32(f reflect.Value, tag reflect.StructTag, val string) 
 		return err
 	}
 
-	if min, err := lookupFloatTag[float32]("min", tag); err != nil {
+	if minValue, err := lookupFloatTag[float32]("min", tag); err != nil {
 		return fmt.Errorf("parsing min value: %w", err)
-	} else if min != nil && i < *min {
-		return fmt.Errorf("value %v is less than the minimal value %v", val, *min)
+	} else if minValue != nil && i < *minValue {
+		return fmt.Errorf("value %v is less than the minimal value %v", val, *minValue)
 	}
 
-	if max, err := lookupFloatTag[float32]("max", tag); err != nil {
+	if maxValue, err := lookupFloatTag[float32]("max", tag); err != nil {
 		return fmt.Errorf("parsing max value: %w", err)
-	} else if max != nil && i < *max {
-		return fmt.Errorf("value %v is greater than the minimal value %v", val, *max)
+	} else if maxValue != nil && i < *maxValue {
+		return fmt.Errorf("value %v is greater than the minimal value %v", val, *maxValue)
 	}
 
 	f.Set(reflect.ValueOf(i))
@@ -79,16 +79,16 @@ func (p *parser) setFloat64(f reflect.Value, tag reflect.StructTag, val string) 
 		return err
 	}
 
-	if min, err := lookupFloatTag[float64]("min", tag); err != nil {
+	if minValue, err := lookupFloatTag[float64]("min", tag); err != nil {
 		return fmt.Errorf("parsing min value: %w", err)
-	} else if min != nil && i < *min {
-		return fmt.Errorf("value %v is less than the minimal value %v", val, *min)
+	} else if minValue != nil && i < *minValue {
+		return fmt.Errorf("value %v is less than the minimal value %v", val, *minValue)
 	}
 
-	if max, err := lookupFloatTag[float64]("max", tag); err != nil {
+	if maxValue, err := lookupFloatTag[float64]("max", tag); err != nil {
 		return fmt.Errorf("parsing max value: %w", err)
-	} else if max != nil && i < *max {
-		return fmt.Errorf("value %v is greater than the minimal value %v", val, *max)
+	} else if maxValue != nil && i < *maxValue {
+		return fmt.Errorf("value %v is greater than the minimal value %v", val, *maxValue)
 	}
 
 	v := reflect.ValueOf(i)

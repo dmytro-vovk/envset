@@ -58,16 +58,16 @@ func setInteger[N integer](f reflect.Value, tag reflect.StructTag, val string) e
 		return err
 	}
 
-	if min, err := lookupIntegerTag[N]("min", tag); err != nil {
+	if minValue, err := lookupIntegerTag[N]("min", tag); err != nil {
 		return fmt.Errorf("parsing min value: %w", err)
-	} else if min != nil && i < *min {
-		return fmt.Errorf("value %v is less than the minimal value %v", val, *min)
+	} else if minValue != nil && i < *minValue {
+		return fmt.Errorf("value %v is less than the minimal value %v", val, *minValue)
 	}
 
-	if max, err := lookupIntegerTag[N]("max", tag); err != nil {
+	if maxValue, err := lookupIntegerTag[N]("max", tag); err != nil {
 		return fmt.Errorf("parsing max value: %w", err)
-	} else if max != nil && i < *max {
-		return fmt.Errorf("value %v is greater than the minimal value %v", val, *max)
+	} else if maxValue != nil && i < *maxValue {
+		return fmt.Errorf("value %v is greater than the minimal value %v", val, *maxValue)
 	}
 
 	v := reflect.ValueOf(i)
