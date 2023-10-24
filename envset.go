@@ -102,12 +102,16 @@ func (p *parser) setStruct(v reflect.Value) error {
 		}
 
 		// Check if the field is tagged, if not, skip it
-		val, ok := p.tagValue(v.Type().Field(i).Tag)
-		if !ok {
+		val, exist, optional := p.tagValue(v.Type().Field(i).Tag)
+		if !exist {
 			continue
 		}
 
 		if val == "" {
+			if optional {
+				continue
+			}
+
 			return NewMissingValueError(v.Type().Field(i).Tag.Get(p.envTag))
 		}
 
@@ -252,8 +256,12 @@ func (p *parser) setString(f reflect.Value, tag reflect.StructTag, val string) e
 }
 
 func (p *parser) parseType(f reflect.Value, tag reflect.StructTag, parser func(string) (reflect.Value, error)) error {
-	val, ok := p.tagValue(tag)
+	val, ok, optional := p.tagValue(tag)
 	if !ok {
+		return nil
+	}
+
+	if val == "" && optional {
 		return nil
 	}
 
@@ -265,9 +273,9 @@ func (p *parser) parseType(f reflect.Value, tag reflect.StructTag, parser func(s
 	return err
 }
 
-func (p *parser) tagValue(tag reflect.StructTag) (val string, ok bool) {
-	env, ok := tag.Lookup(p.envTag)
-	if !ok {
+func (p *parser) tagValue(tag reflect.StructTag) (val string, exist, optional bool) {
+	env, exist := tag.Lookup(p.envTag)
+	if !exist {
 		return
 	}
 
@@ -276,15 +284,15 @@ func (p *parser) tagValue(tag reflect.StructTag) (val string, ok bool) {
 		env = strings.TrimSuffix(env, ",omitempty")
 	}
 
-	val, ok = os.LookupEnv(env)
-	if ok {
+	val, exist = os.LookupEnv(env)
+	if exist {
 		return
 	}
 
-	val, ok = tag.Lookup(p.defaultTag)
-	if ok {
+	val, exist = tag.Lookup(p.defaultTag)
+	if exist {
 		return
 	}
 
-	return "", !omitEmpty
+	return "", !omitEmpty, omitEmpty
 }

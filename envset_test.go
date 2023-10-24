@@ -169,6 +169,16 @@ func TestOmitEmptyWithDefault(t *testing.T) {
 	assert.Equal(t, 10, v.A)
 }
 
+func TestOmitEmptyWithNoDefault(t *testing.T) {
+	type T struct {
+		A int `env:"a,omitempty"`
+	}
+
+	var v T
+	require.NoError(t, envset.Set(&v))
+	assert.Equal(t, 0, v.A)
+}
+
 func TestOmitEmptyWithDefault2(t *testing.T) {
 	type T struct {
 		A int `env:"a" default:"10"`
@@ -299,12 +309,23 @@ func TestCustomType2(t *testing.T) {
 	})), "boo")
 }
 
+func TestCustomType3(t *testing.T) {
+	type C string
+	type T struct {
+		C C `env:"c,omitempty"`
+	}
+	var v T
+	require.NoError(t, envset.Set(&v, envset.WithTypeParser(func(string) (C, error) {
+		return "", errors.New("boo")
+	})))
+}
+
 func TestCustomTypeString(t *testing.T) {
 	type C string
 	type A = string
 	type T struct {
 		C C `env:"c" default:"foo"`
-		A A `env:"c" default:"bar"`
+		A A `env:"c,omitempty" default:"bar"`
 	}
 	var v T
 	require.NoError(t, envset.Set(&v))
