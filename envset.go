@@ -13,8 +13,8 @@ type parser struct {
 	sliceSeparator string
 	envTag         string
 	defaultTag     string
-	customTypes    map[string]func(string) (reflect.Value, error)
-	bools          map[string]bool
+	customTypes    map[reflect.Type]func(string) (reflect.Value, error)
+	booleans       map[string]bool
 }
 
 const (
@@ -23,7 +23,7 @@ const (
 	defaultSliceSeparator = ","
 )
 
-var defaultBools = map[string]bool{
+var defaultBooleans = map[string]bool{
 	"1": true, "0": false,
 	"t": true, "f": false,
 	"true": true, "false": false,
@@ -33,10 +33,8 @@ var defaultBools = map[string]bool{
 }
 
 // Set accepts a pointer to a struct and zero or more Options
-func Set(structPtr any, options ...Option) error {
-	t := reflect.TypeOf(structPtr)
-
-	if t.Kind() != reflect.Pointer || t.Elem().Kind() != reflect.Struct {
+func Set[T any](structPtr *T, options ...Option) error {
+	if reflect.TypeOf(structPtr).Elem().Kind() != reflect.Struct {
 		// We panic because there is a programmatic error,
 		// wrong value passed
 		panic(ErrStructPtrExpected)
@@ -50,8 +48,8 @@ func buildParser(options []Option) *parser {
 		sliceSeparator: defaultSliceSeparator,
 		envTag:         defaultEnvTag,
 		defaultTag:     defaultDefaultTag,
-		customTypes:    make(map[string]func(string) (reflect.Value, error)),
-		bools:          defaultBools,
+		customTypes:    make(map[reflect.Type]func(string) (reflect.Value, error)),
+		booleans:       defaultBooleans,
 	}).apply(options)
 }
 
@@ -73,7 +71,7 @@ func (p *parser) setStruct(v reflect.Value) error {
 		f := v.Field(i)
 
 		// Check if we have a custom type
-		if parser, ok := p.customTypes[f.Type().String()]; ok {
+		if parser, ok := p.customTypes[f.Type()]; ok {
 			if err := p.parseType(f, v.Type().Field(i).Tag, parser); err != nil {
 				return err
 			}
@@ -175,7 +173,7 @@ func (p *parser) setField(f reflect.Value, val string, tags reflect.StructTag) e
 }
 
 func (p *parser) parseBool(f reflect.Value, val string) error {
-	parsed, ok := p.bools[strings.ToLower(val)]
+	parsed, ok := p.booleans[strings.ToLower(val)]
 	if !ok {
 		return errors.New("invalid bool value " + val)
 	}
@@ -300,37 +298,10 @@ func (p *parser) parseType(f reflect.Value, tag reflect.StructTag, parser func(s
 }
 
 func (p *parser) tagKey(tag reflect.StructTag) (key string, exist, optional bool) {
-	key, exist = tag.Lookup(p.envTag)
-	if !exist {
-		return
+	if key, exist = tag.Lookup(p.envTag); exist {
+		optional = strings.HasSuffix(key, ",omitempty")
+		key = strings.TrimSuffix(key, ",omitempty")
 	}
-
-	optional = strings.HasSuffix(key, ",omitempty")
-	key = strings.TrimSuffix(key, ",omitempty")
 
 	return
 }
-
-//func (p *parser) tagValue(tag reflect.StructTag) (val string, exist bool) {
-//	env, exist := tag.Lookup(p.envTag)
-//	if !exist {
-//		return
-//	}
-//
-//	omitEmpty := strings.HasSuffix(env, ",omitempty")
-//	if omitEmpty {
-//		env = strings.TrimSuffix(env, ",omitempty")
-//	}
-//
-//	val, exist = os.LookupEnv(env)
-//	if exist {
-//		return
-//	}
-//
-//	val, exist = tag.Lookup(p.defaultTag)
-//	if exist {
-//		return
-//	}
-//
-//	return "", !omitEmpty
-//}

@@ -80,15 +80,12 @@ func TestSet(t *testing.T) {
 	now := time.Now().In(time.UTC)
 	require.NoError(t, os.Setenv("TIME", now.String()))
 
-	var ms MyStruct
-
-	require.Panics(t, func() { _ = envset.Set(ms) })
-	require.Panics(t, func() { _ = envset.Set(false) })
-	require.Panics(t, func() { _ = envset.Set(nil) })
 	require.NotPanics(t, func() { _ = envset.Set(&struct{}{}) })
 
 	var i int
 	require.Panics(t, func() { _ = envset.Set(&i) })
+
+	var ms MyStruct
 
 	require.NoError(t, envset.Set(
 		&ms,

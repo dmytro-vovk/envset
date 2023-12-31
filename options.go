@@ -30,7 +30,7 @@ func WithTypeParser[T any](fn func(val string) (T, error)) Option {
 	return func(p *parser) {
 		var t T
 		vt := reflect.TypeOf(t)
-		p.customTypes[vt.String()] = func(val string) (reflect.Value, error) {
+		p.customTypes[vt] = func(val string) (reflect.Value, error) {
 			v, err := fn(val)
 			return reflect.ValueOf(v), err
 		}
@@ -39,5 +39,5 @@ func WithTypeParser[T any](fn func(val string) (T, error)) Option {
 
 // WithCustomBools adds a pair of values to be interpreted as true/false
 func WithCustomBools(asTrue, asFalse string) Option {
-	return func(p *parser) { p.bools[asTrue], p.bools[asFalse] = true, false }
+	return func(p *parser) { p.booleans[asTrue], p.booleans[asFalse] = true, false }
 }
