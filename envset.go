@@ -99,6 +99,11 @@ func (p *parser) setStruct(v reflect.Value) error {
 			continue
 		}
 
+		// check if the field already has value
+		if !f.IsZero() {
+			continue
+		}
+
 		// Check if the field is tagged, if not, skip it
 		key, ok, optional := p.tagKey(v.Type().Field(i).Tag)
 		if !ok {
