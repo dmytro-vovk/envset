@@ -425,3 +425,27 @@ func TestEmptyEnvValue(t *testing.T) {
 	require.NoError(t, envset.Set(&v))
 	assert.Equal(t, "", v.A)
 }
+
+func TestSkipDefault(t *testing.T) {
+	type T struct {
+		A string `env:"a" default:"three"`
+	}
+
+	var v T
+	v.A = "one"
+	require.NoError(t, envset.Set(&v))
+	assert.Equal(t, "one", v.A)
+}
+
+func TestSkipEnv(t *testing.T) {
+	t.Setenv("a", "two")
+
+	type T struct {
+		A string `env:"a"`
+	}
+
+	var v T
+	v.A = "one"
+	require.NoError(t, envset.Set(&v))
+	assert.Equal(t, "one", v.A)
+}
